@@ -4,9 +4,9 @@ type Props = {
   children: ReactNode;
 };
 
-export default function Carousel({ children }: Props) {
+export function Carousel({ children }: Props) {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:thin]">
       {children}
     </div>
   );
