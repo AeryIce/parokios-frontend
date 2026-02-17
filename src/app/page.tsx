@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { AreaPicker } from "@/app/_components/AreaPicker";
+import PersonalShelf from "@/app/_components/PersonalShelf";
 import { Carousel } from "@/app/_components/Carousel";
 import { ProductCard } from "@/app/_components/ProductCard";
 import { Section } from "@/app/_components/Section";
@@ -20,7 +21,6 @@ import {
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type HomeProps = {
-  // Next kadang treat ini sebagai Promise (dynamic API)
   searchParams?: SearchParams | Promise<SearchParams>;
 };
 
@@ -48,10 +48,8 @@ function toCardItems(products: readonly Product[]): CardItem[] {
   for (const p of products) {
     const parish = getParishBySlug(p.parishSlug);
     if (!parish) continue;
-
     const seller = getSeller(parish.slug, p.sellerSlug);
     if (!seller) continue;
-
     out.push({ parish, seller, product: p });
   }
 
@@ -59,11 +57,11 @@ function toCardItems(products: readonly Product[]): CardItem[] {
 }
 
 export default async function Home({ searchParams }: HomeProps) {
-  const sp = await Promise.resolve(searchParams);
+  const sp = await Promise.resolve(searchParams ?? {});
 
   const areas = listAreas();
-  const area = coerceArea(pickOne(sp?.area), areas);
-  const q = (pickOne(sp?.q) ?? "").trim().toLowerCase();
+  const area = coerceArea(pickOne(sp.area), areas);
+  const q = (pickOne(sp.q) ?? "").trim().toLowerCase();
 
   const nearYou = listProductsByArea(area);
   const parishesInArea = listParishesByArea(area);
@@ -93,7 +91,6 @@ export default async function Home({ searchParams }: HomeProps) {
           const hay = `${p.name} ${p.desc} ${p.category} ${seller?.name ?? ""}`
             .toLowerCase()
             .trim();
-
           return hay.includes(q);
         }).slice(0, 18);
 
@@ -123,7 +120,6 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
           </div>
 
-          {/* FIX: useSearchParams() di client component harus dibungkus Suspense */}
           <Suspense
             fallback={
               <div className="h-10 w-44 rounded-xl border border-orange-200/70 bg-white/70 shadow-sm backdrop-blur" />
@@ -196,9 +192,13 @@ export default async function Home({ searchParams }: HomeProps) {
           </button>
         </form>
 
+        {/* Personal shelf (hide when searching) */}
+        <PersonalShelf hide={q.length >= 2} />
+
         {q.length >= 2 && searchResults.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-orange-200/70 bg-white/80 p-6 text-sm font-semibold text-stone-700 shadow-sm">
-            Hasil cari “<span className="font-black">{q}</span>” belum ketemu. Coba kata lain ya 😄
+            Hasil cari “<span className="font-black">{q}</span>” belum ketemu.
+            Coba kata lain ya 😄
           </div>
         ) : null}
 
@@ -243,7 +243,10 @@ export default async function Home({ searchParams }: HomeProps) {
 
         {/* Best sellers */}
         <div id="terlaris" />
-        <Section title="Terlaris minggu ini" subtitle="Basis demo: sold count. Nanti basis real: order selesai.">
+        <Section
+          title="Terlaris minggu ini"
+          subtitle="Basis demo: sold count. Nanti basis real: order selesai."
+        >
           <Carousel>
             {toCardItems(bestSellers).map(({ parish, seller, product }) => (
               <ProductCard
@@ -286,7 +289,10 @@ export default async function Home({ searchParams }: HomeProps) {
 
         {/* Trending */}
         <div id="trending" />
-        <Section title="Trending" subtitle="Demo: produk yang ditandai trending + kategori terpopuler di area.">
+        <Section
+          title="Trending"
+          subtitle="Demo: produk yang ditandai trending + kategori terpopuler di area."
+        >
           <Carousel>
             {toCardItems(trending).map(({ parish, seller, product }) => (
               <ProductCard
@@ -316,8 +322,8 @@ export default async function Home({ searchParams }: HomeProps) {
         {/* Footer */}
         <div className="mt-14 border-t border-orange-200/60 pt-6 text-xs font-semibold text-stone-600">
           <div>
-            Parokios itu marketplace paroki tanpa payment gateway. Buyer chat WA, transfer manual, upload bukti.
-            Sederhana, tapi aman.
+            Parokios itu marketplace paroki tanpa payment gateway. Buyer chat WA, transfer manual,
+            upload bukti. Sederhana, tapi aman.
           </div>
           <div className="mt-2">
             Debug:{" "}
