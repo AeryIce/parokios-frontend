@@ -1,4 +1,4 @@
-import BackendProbe from "../../_components/BackendProbe";
+import BackendProbe from "@/app/_components/BackendProbe";
 
 export default function ProbePage() {
   return (

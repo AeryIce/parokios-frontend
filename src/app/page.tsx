@@ -1,21 +1,33 @@
 import Link from "next/link";
-import AreaPicker from "./_components/AreaPicker";
-import Carousel from "./_components/Carousel";
-import ProductCard from "./_components/ProductCard";
-import Section from "./_components/Section";
+import { Suspense } from "react";
+import { AreaPicker } from "@/app/_components/AreaPicker";
+import { Carousel } from "@/app/_components/Carousel";
+import { ProductCard } from "@/app/_components/ProductCard";
+import { Section } from "@/app/_components/Section";
 import {
-  demoProducts,
-  demoTrending,
   getParishBySlug,
+  getSeller,
   listAreas,
-  minVariantPrice,
-} from "./_data/demo";
+  listParishesByArea,
+  listProductsByArea,
+  PRODUCTS,
+  type Area,
+  type Parish,
+  type Product,
+  type Seller,
+} from "@/app/_data/demo";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type HomeProps = {
-  // Next versi kamu treat ini sebagai Promise (dynamic API)
+  // Next kadang treat ini sebagai Promise (dynamic API)
   searchParams?: SearchParams | Promise<SearchParams>;
+};
+
+type CardItem = {
+  parish: Parish;
+  seller: Seller;
+  product: Product;
 };
 
 function pickOne(param: string | string[] | undefined): string | null {
@@ -24,146 +36,206 @@ function pickOne(param: string | string[] | undefined): string | null {
   return null;
 }
 
+function coerceArea(raw: string | null, areas: readonly Area[]): Area {
+  const fallback = areas[0] ?? "Jakarta Timur";
+  if (!raw) return fallback;
+  return areas.includes(raw as Area) ? (raw as Area) : fallback;
+}
+
+function toCardItems(products: readonly Product[]): CardItem[] {
+  const out: CardItem[] = [];
+
+  for (const p of products) {
+    const parish = getParishBySlug(p.parishSlug);
+    if (!parish) continue;
+
+    const seller = getSeller(parish.slug, p.sellerSlug);
+    if (!seller) continue;
+
+    out.push({ parish, seller, product: p });
+  }
+
+  return out;
+}
+
 export default async function Home({ searchParams }: HomeProps) {
   const sp = await Promise.resolve(searchParams);
 
-  const areaParam = pickOne(sp?.area) ?? "Jakarta Timur";
-  const qParam = (pickOne(sp?.q) ?? "").trim().toLowerCase();
-
   const areas = listAreas();
+  const area = coerceArea(pickOne(sp?.area), areas);
+  const q = (pickOne(sp?.q) ?? "").trim().toLowerCase();
 
-  const withParish = demoProducts.map((p) => {
-    const parish = getParishBySlug(p.parishSlug);
-    return { product: p, parish };
-  });
+  const nearYou = listProductsByArea(area);
+  const parishesInArea = listParishesByArea(area);
 
-  const nearYou = withParish
-    .filter((x) => x.parish?.area === areaParam)
-    .map((x) => x.product);
-
-  const bestSellers = [...demoProducts]
-    .sort((a, b) => b.stats.sold - a.stats.sold)
+  const bestSellers = [...PRODUCTS]
+    .sort((a, b) => b.soldCount - a.soldCount)
     .slice(0, 10);
 
-  const cheapest = [...demoProducts]
-    .sort((a, b) => minVariantPrice(a) - minVariantPrice(b))
-    .slice(0, 10);
+  const cheapest = [...PRODUCTS].sort((a, b) => a.price - b.price).slice(0, 10);
 
-  const newest = [...demoProducts]
-    .sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso))
-    .slice(0, 10);
+  const newestRaw = PRODUCTS.filter((p) => p.isNew);
+  const newest = (newestRaw.length > 0 ? newestRaw : [...PRODUCTS].reverse()).slice(
+    0,
+    10
+  );
 
-  const trendingInArea = demoTrending
-    .filter((t) => t.area === areaParam)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  const trendingRaw = PRODUCTS.filter((p) => p.isTrending);
+  const trending = (trendingRaw.length > 0 ? trendingRaw : bestSellers).slice(0, 10);
 
   const searchResults =
-    qParam.length < 2
+    q.length < 2
       ? []
-      : demoProducts.filter((p) => {
-          const hay = `${p.name} ${p.description} ${p.category}`.toLowerCase();
-          return hay.includes(qParam);
-        });
+      : PRODUCTS.filter((p) => {
+          const parish = getParishBySlug(p.parishSlug);
+          const seller = parish ? getSeller(parish.slug, p.sellerSlug) : null;
+
+          const hay = `${p.name} ${p.desc} ${p.category} ${seller?.name ?? ""}`
+            .toLowerCase()
+            .trim();
+
+          return hay.includes(q);
+        }).slice(0, 18);
+
+  const categoryCounts = new Map<string, number>();
+  for (const p of nearYou) {
+    categoryCounts.set(p.category, (categoryCounts.get(p.category) ?? 0) + 1);
+  }
+  const trendingCategories = [...categoryCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([category]) => category);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 px-6 py-10 text-zinc-900 dark:from-zinc-950 dark:via-black dark:to-zinc-950 dark:text-zinc-50">
+    <main className="min-h-dvh bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 px-6 py-10 text-stone-900">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="inline-flex items-center gap-2">
               <div className="text-3xl font-black tracking-tight">Parokios</div>
-              <span className="rounded-full bg-rose-600/90 px-3 py-1 text-xs font-black text-white shadow-sm">
+              <span className="rounded-full bg-amber-600/90 px-3 py-1 text-xs font-black text-white shadow-sm">
                 food-first
               </span>
             </div>
-            <div className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            <div className="mt-1 text-sm font-semibold text-stone-700">
               Bikin laper dulu. Bayarnya transfer manual. Bukti transfer aman.
             </div>
           </div>
 
-          <AreaPicker areas={areas} currentArea={areaParam} />
+          {/* FIX: useSearchParams() di client component harus dibungkus Suspense */}
+          <Suspense
+            fallback={
+              <div className="h-10 w-44 rounded-xl border border-orange-200/70 bg-white/70 shadow-sm backdrop-blur" />
+            }
+          >
+            <AreaPicker areas={areas} currentArea={area} />
+          </Suspense>
         </div>
 
-        {/* Hero “bikin laper” */}
-        <div className="mt-6 rounded-3xl border border-orange-200/70 bg-white/75 p-5 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/70">
+        {/* Hero */}
+        <div className="mt-6 rounded-3xl border border-orange-200/70 bg-white/75 p-5 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-lg font-black">
-                🍗 Laper? mulai dari yang dekat dulu.
-              </div>
-              <div className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                Area kamu: <span className="font-black text-rose-700 dark:text-rose-300">{areaParam}</span>
+              <div className="text-lg font-black">🍗 Laper? mulai dari yang dekat dulu.</div>
+              <div className="mt-1 text-sm font-semibold text-stone-700">
+                Area kamu: <span className="font-black text-orange-700">{area}</span>
                 {" • "}
-                Nanti ada “terlaris”, “termurah”, dan “baru nongol”.
+                nanti ada “terlaris”, “termurah”, dan “baru nongol”.
               </div>
             </div>
 
             <div className="flex gap-2">
               <a
                 href="#terlaris"
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-rose-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-rose-700"
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-amber-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-amber-700"
               >
                 Lihat terlaris 🔥
               </a>
               <a
                 href="#trending"
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-200/70 bg-white px-4 text-sm font-black text-zinc-900 shadow-sm transition hover:bg-rose-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-200/70 bg-white px-4 text-sm font-black text-stone-900 shadow-sm transition hover:bg-rose-50"
               >
                 Trending 🍜
               </a>
             </div>
           </div>
+
+          {parishesInArea.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {parishesInArea.map((p) => (
+                <Link
+                  key={p.slug}
+                  href={`/${p.slug}`}
+                  className="rounded-full border border-orange-200/70 bg-white/80 px-4 py-2 text-sm font-black text-stone-900 shadow-sm transition hover:border-rose-200 hover:bg-rose-50"
+                >
+                  {p.name}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {/* Search */}
         <form
-          className="mt-4 flex items-center gap-3 rounded-2xl border border-orange-200/70 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/70"
+          className="mt-4 flex items-center gap-3 rounded-2xl border border-orange-200/70 bg-white/80 p-3 shadow-sm backdrop-blur"
           action="/"
         >
           <input
             name="q"
-            defaultValue={qParam}
+            defaultValue={q}
             placeholder="Cari… nastar, hampers, snack box, sambal…"
-            className="h-10 w-full rounded-xl bg-transparent px-3 text-sm font-semibold outline-none placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
+            className="h-10 w-full rounded-xl bg-transparent px-3 text-sm font-semibold outline-none placeholder:text-stone-500"
           />
-          <input type="hidden" name="area" value={areaParam} />
+          <input type="hidden" name="area" value={area} />
           <button
             type="submit"
-            className="h-10 shrink-0 rounded-xl bg-rose-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-rose-700"
+            className="h-10 shrink-0 rounded-xl bg-amber-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-amber-700"
           >
             Cari
           </button>
         </form>
 
+        {q.length >= 2 && searchResults.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-orange-200/70 bg-white/80 p-6 text-sm font-semibold text-stone-700 shadow-sm">
+            Hasil cari “<span className="font-black">{q}</span>” belum ketemu. Coba kata lain ya 😄
+          </div>
+        ) : null}
+
         {/* Search results */}
         {searchResults.length > 0 ? (
           <Section
-            title={`Hasil cari (demo): “${qParam}”`}
+            title={`Hasil cari (demo): “${q}”`}
             subtitle="Nanti ini jadi search beneran + tracking keyword (buat insight seller)."
           >
             <Carousel>
-              {searchResults.map((p) => (
-                <ProductCard key={p.id} product={p} />
+              {toCardItems(searchResults).map(({ parish, seller, product }) => (
+                <ProductCard
+                  key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                  parish={parish}
+                  seller={seller}
+                  product={product}
+                />
               ))}
             </Carousel>
           </Section>
         ) : null}
 
         {/* Near you */}
-        <Section
-          title="Enak di dekatmu"
-          subtitle={`Area: ${areaParam} (coarse, aman privasi).`}
-        >
+        <Section title="Enak di dekatmu" subtitle={`Area: ${area} (coarse, aman privasi).`}>
           {nearYou.length > 0 ? (
             <Carousel>
-              {nearYou.map((p) => (
-                <ProductCard key={p.id} product={p} />
+              {toCardItems(nearYou).map(({ parish, seller, product }) => (
+                <ProductCard
+                  key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                  parish={parish}
+                  seller={seller}
+                  product={product}
+                />
               ))}
             </Carousel>
           ) : (
-            <div className="rounded-2xl border border-orange-200/70 bg-white/80 p-6 text-sm font-semibold text-zinc-700 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/70 dark:text-zinc-300">
+            <div className="rounded-2xl border border-orange-200/70 bg-white/80 p-6 text-sm font-semibold text-stone-700 shadow-sm">
               Belum ada demo produk untuk area ini. Ganti area dulu ya 😄
             </div>
           )}
@@ -171,22 +243,29 @@ export default async function Home({ searchParams }: HomeProps) {
 
         {/* Best sellers */}
         <div id="terlaris" />
-        <Section
-          title="Terlaris minggu ini"
-          subtitle="Basis demo: sold count. Nanti basis real: order selesai."
-        >
+        <Section title="Terlaris minggu ini" subtitle="Basis demo: sold count. Nanti basis real: order selesai.">
           <Carousel>
-            {bestSellers.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {toCardItems(bestSellers).map(({ parish, seller, product }) => (
+              <ProductCard
+                key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                parish={parish}
+                seller={seller}
+                product={product}
+              />
             ))}
           </Carousel>
         </Section>
 
         {/* Cheapest */}
-        <Section title="Murah tapi bahagia" subtitle="Diurut dari harga varian termurah.">
+        <Section title="Murah tapi bahagia" subtitle="Diurut dari harga termurah.">
           <Carousel>
-            {cheapest.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {toCardItems(cheapest).map(({ parish, seller, product }) => (
+              <ProductCard
+                key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                parish={parish}
+                seller={seller}
+                product={product}
+              />
             ))}
           </Carousel>
         </Section>
@@ -194,40 +273,51 @@ export default async function Home({ searchParams }: HomeProps) {
         {/* Newest */}
         <Section title="Baru nongol" subtitle="Biar seller semangat update & SEO makin wangi.">
           <Carousel>
-            {newest.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {toCardItems(newest).map(({ parish, seller, product }) => (
+              <ProductCard
+                key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                parish={parish}
+                seller={seller}
+                product={product}
+              />
             ))}
           </Carousel>
         </Section>
 
         {/* Trending */}
         <div id="trending" />
-        <Section title="Trending search" subtitle="Demo keyword. Nanti dari log search/view/checkout_start.">
-          {trendingInArea.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {trendingInArea.map((t) => (
+        <Section title="Trending" subtitle="Demo: produk yang ditandai trending + kategori terpopuler di area.">
+          <Carousel>
+            {toCardItems(trending).map(({ parish, seller, product }) => (
+              <ProductCard
+                key={`${parish.slug}-${seller.slug}-${product.slug}`}
+                parish={parish}
+                seller={seller}
+                product={product}
+              />
+            ))}
+          </Carousel>
+
+          {trendingCategories.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {trendingCategories.map((cat) => (
                 <Link
-                  key={`${t.area}-${t.keyword}`}
-                  href={`/?area=${encodeURIComponent(areaParam)}&q=${encodeURIComponent(t.keyword)}`}
-                  className="rounded-full border border-orange-200/70 bg-white/80 px-4 py-2 text-sm font-black text-zinc-900 shadow-sm backdrop-blur transition hover:border-rose-200 hover:bg-rose-50 dark:border-zinc-800 dark:bg-zinc-950/70 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                  key={cat}
+                  href={`/?area=${encodeURIComponent(area)}&q=${encodeURIComponent(cat)}`}
+                  className="rounded-full border border-orange-200/70 bg-white/80 px-4 py-2 text-sm font-black text-stone-900 shadow-sm transition hover:border-rose-200 hover:bg-rose-50"
                 >
-                  {t.keyword}{" "}
-                  <span className="text-xs font-semibold opacity-70">({t.count})</span>
+                  {cat}
                 </Link>
               ))}
             </div>
-          ) : (
-            <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              Belum ada trending demo untuk area ini.
-            </div>
-          )}
+          ) : null}
         </Section>
 
         {/* Footer */}
-        <div className="mt-14 border-t border-orange-200/60 pt-6 text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+        <div className="mt-14 border-t border-orange-200/60 pt-6 text-xs font-semibold text-stone-600">
           <div>
-            Parokios itu marketplace paroki tanpa payment gateway. Buyer chat WA, transfer manual,
-            upload bukti. Sederhana, tapi aman.
+            Parokios itu marketplace paroki tanpa payment gateway. Buyer chat WA, transfer manual, upload bukti.
+            Sederhana, tapi aman.
           </div>
           <div className="mt-2">
             Debug:{" "}

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import type { Product, Parish, Seller } from "../_data/demo";
+import Image from "next/image";
+import type { Parish, Product, Seller } from "../_data/demo";
+import { minVariantPrice } from "../_data/demo";
 
 type Props = {
   parish: Parish;
@@ -7,49 +9,63 @@ type Props = {
   product: Product;
 };
 
-function rupiah(n: number) {
-  return new Intl.NumberFormat("id-ID").format(n);
-}
-
 export function ProductCard({ parish, seller, product }: Props) {
+  const price = minVariantPrice(product);
+
   return (
     <Link
       href={`/${parish.slug}/${seller.slug}/${product.slug}`}
-      className="group w-[260px] shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="block w-[280px] shrink-0 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="relative h-32 bg-gradient-to-br from-amber-100 via-orange-100 to-amber-50">
-        <div className="absolute left-3 top-3 rounded-full bg-white/85 px-3 py-1 text-[11px] font-extrabold text-stone-800 shadow-sm">
-          {parish.name}
-        </div>
+      <div className="relative border-b border-stone-200 p-4">
+        {product.imageUrl ? (
+          <Image
+            src={product.imageUrl}
+            alt={product.imageAlt ?? product.name}
+            fill
+            className="object-cover opacity-55"
+            sizes="(max-width: 768px) 85vw, 320px"
+            priority={false}
+          />
+        ) : null}
 
-        <div className="absolute bottom-3 left-3 flex items-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/90 text-xl shadow-sm">
-            {product.emoji ?? "🍽️"}
+        {/* overlay biar teks tetap kebaca + tetep capucino vibe */}
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-100/85 via-orange-100/80 to-rose-100/85" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-white/35 to-transparent" />
+
+        <div className="relative flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-stone-200 bg-white text-2xl shadow-sm">
+            {product.emoji}
           </div>
-          <div className="text-sm font-extrabold text-stone-900 drop-shadow-sm">
-            {seller.name}
+
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold text-stone-700">
+              {parish.name}
+            </div>
+            <div className="truncate text-sm font-black text-stone-900">
+              {seller.name}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="p-4">
-        <div className="text-base font-extrabold text-stone-900">
-          {product.name}
-        </div>
-        <p className="mt-1 line-clamp-2 text-sm text-stone-600">
+        <div className="text-base font-black text-stone-900">{product.name}</div>
+        <div className="mt-1 line-clamp-2 text-sm font-semibold text-stone-600">
           {product.desc}
-        </p>
+        </div>
 
-        <div className="mt-3 flex items-end justify-between gap-3">
-          <div className="text-sm font-black text-orange-700">
-            Rp {rupiah(product.price)}
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold text-stone-500">Mulai dari</div>
+            <div className="text-lg font-black text-orange-700">
+              Rp {price.toLocaleString("id-ID")}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
-              {product.category}
-            </span>
-          </div>
+          <span className="rounded-full border border-stone-200 bg-amber-50 px-3 py-1 text-xs font-extrabold text-amber-800">
+            {product.category}
+          </span>
         </div>
       </div>
     </Link>

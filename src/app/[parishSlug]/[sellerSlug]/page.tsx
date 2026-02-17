@@ -1,53 +1,49 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import Carousel from "../../_components/Carousel";
-import ProductCard from "../../_components/ProductCard";
-import Section from "../../_components/Section";
-import { demoProducts, getParishBySlug, getSellerBySlug } from "../../_data/demo";
+import { Carousel } from "@/app/_components/Carousel";
+import { ProductCard } from "@/app/_components/ProductCard";
+import { Section } from "@/app/_components/Section";
+import { getParishBySlug, getSeller, listProductsBySeller } from "@/app/_data/demo";
 
 type Props = {
-  params: {
-    parishSlug: string;
-    sellerSlug: string;
-  };
+  params:
+    | { parishSlug: string; sellerSlug: string }
+    | Promise<{ parishSlug: string; sellerSlug: string }>;
 };
 
-export default function SellerPage({ params }: Props) {
-  const parish = getParishBySlug(params.parishSlug);
-  const seller = getSellerBySlug(params.parishSlug, params.sellerSlug);
+export default async function SellerPage({ params }: Props) {
+  const p = await Promise.resolve(params);
 
+  const parish = getParishBySlug(p.parishSlug);
+  const seller = getSeller(p.parishSlug, p.sellerSlug);
   if (!parish || !seller) notFound();
 
-  const products = demoProducts.filter(
-    (p) => p.parishSlug === parish.slug && p.sellerSlug === seller.slug
-  );
+  const products = listProductsBySeller(parish.slug, seller.slug);
 
   return (
-    <main className="min-h-screen bg-amber-50 px-6 py-10 text-zinc-900 dark:bg-black dark:text-zinc-50">
-      <div className="mx-auto max-w-6xl">
-        <div className="text-3xl font-black">{seller.name}</div>
-        <div className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-          {parish.name} • {parish.area}
+    <main className="min-h-dvh bg-gradient-to-b from-orange-50 via-amber-50 to-white">
+      <div className="mx-auto max-w-6xl px-5 py-8">
+        <Link
+          href={`/${parish.slug}`}
+          className="text-sm font-bold text-orange-700 underline decoration-orange-300"
+        >
+          ← {parish.name}
+        </Link>
+
+        <div className="mt-4 rounded-3xl border border-stone-200 bg-white/75 p-6 shadow-sm backdrop-blur">
+          <h1 className="text-2xl font-black text-stone-900">{seller.name}</h1>
+          <p className="mt-1 text-sm font-semibold text-stone-600">{seller.tagline}</p>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-            {seller.tagline}
-          </div>
-
-          <a
-            className="mt-3 inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
-            href={`https://wa.me/${seller.whatsapp}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Chat WA & Pesan
-          </a>
-        </div>
-
-        <Section title="Etalase" subtitle="Demo dulu. Nanti ambil dari DB + Cloudinary.">
+        <Section title="Etalase" subtitle="Demo dulu, nanti nyambung DB.">
           <Carousel>
-            {products.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {products.map((prod) => (
+              <ProductCard
+                key={prod.slug}
+                parish={parish}
+                seller={seller}
+                product={prod}
+              />
             ))}
           </Carousel>
         </Section>
