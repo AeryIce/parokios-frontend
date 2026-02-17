@@ -1,69 +1,123 @@
-import Link from "next/link";
+"use client";
+
 import Image from "next/image";
+import Link from "next/link";
+import { useMemo, useSyncExternalStore } from "react";
 import type { Parish, Product, Seller } from "../_data/demo";
-import { minVariantPrice } from "../_data/demo";
+import { formatRupiah } from "../_lib/money";
+import {
+  addRecent,
+  getFavorites,
+  makeProductKey,
+  toggleFavorite,
+  FAVORITES_STORAGE_KEY,
+  PERSONAL_EVENT_NAME,
+  type ProductKey,
+} from "../_lib/personalShelf";
 
 type Props = {
   parish: Parish;
   seller: Seller;
-  product: Product;
+  product: Product & {
+    imageUrl?: string;
+    imageAlt?: string;
+  };
 };
 
+const EMPTY_KEYS: ProductKey[] = [];
+
+function makeSubscribe(storageKey: string) {
+  return (onStoreChange: () => void) => {
+    if (typeof window === "undefined") return () => undefined;
+
+    const onCustom = () => onStoreChange();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === storageKey || e.key === null) onStoreChange();
+    };
+
+    window.addEventListener(PERSONAL_EVENT_NAME, onCustom);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener(PERSONAL_EVENT_NAME, onCustom);
+      window.removeEventListener("storage", onStorage);
+    };
+  };
+}
+
+const subscribeFavorites = makeSubscribe(FAVORITES_STORAGE_KEY);
+
 export function ProductCard({ parish, seller, product }: Props) {
-  const price = minVariantPrice(product);
+  const productKey: ProductKey = useMemo(
+    () => makeProductKey(parish.slug, seller.slug, product.slug),
+    [parish.slug, seller.slug, product.slug]
+  );
+
+  const favorites = useSyncExternalStore(subscribeFavorites, getFavorites, () => EMPTY_KEYS);
+  const fav = favorites.includes(productKey);
+
+  const hasImage = typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0;
 
   return (
     <Link
       href={`/${parish.slug}/${seller.slug}/${product.slug}`}
-      className="block w-[280px] shrink-0 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      onClick={() => addRecent(productKey)}
+      className="group relative w-[260px] shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="relative border-b border-stone-200 p-4">
-        {product.imageUrl ? (
-          <Image
-            src={product.imageUrl}
-            alt={product.imageAlt ?? product.name}
-            fill
-            className="object-cover opacity-55"
-            sizes="(max-width: 768px) 85vw, 320px"
-            priority={false}
-          />
-        ) : null}
+      {/* Heart */}
+      <button
+        type="button"
+        aria-label={fav ? "Hapus dari favorit" : "Tambah ke favorit"}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFavorite(productKey);
+        }}
+        className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl border border-stone-200 bg-white/90 text-lg shadow-sm transition hover:bg-white"
+        title={fav ? "Unfavorite" : "Favorite"}
+      >
+        <span className={fav ? "text-rose-600" : "text-stone-500"}>♥</span>
+      </button>
 
-        {/* overlay biar teks tetap kebaca + tetep capucino vibe */}
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-100/85 via-orange-100/80 to-rose-100/85" />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-white/35 to-transparent" />
+      {/* Banner */}
+      <div className="relative h-32">
+        {hasImage ? (
+          <>
+            <Image
+              src={product.imageUrl as string}
+              alt={product.imageAlt ?? product.name}
+              fill
+              className="object-cover"
+              sizes="260px"
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/10 to-white/90" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-orange-100 to-amber-50" />
+        )}
 
-        <div className="relative flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-stone-200 bg-white text-2xl shadow-sm">
-            {product.emoji}
+        <div className="absolute left-3 top-3 rounded-full bg-white/85 px-3 py-1 text-[11px] font-extrabold text-stone-800 shadow-sm">
+          {parish.name}
+        </div>
+
+        <div className="absolute bottom-3 left-3 flex items-center gap-2">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/90 text-xl shadow-sm">
+            {product.emoji ?? "🍽️"}
           </div>
-
-          <div className="min-w-0">
-            <div className="text-xs font-extrabold text-stone-700">
-              {parish.name}
-            </div>
-            <div className="truncate text-sm font-black text-stone-900">
-              {seller.name}
-            </div>
-          </div>
+          <div className="text-sm font-extrabold text-stone-900 drop-shadow-sm">{seller.name}</div>
         </div>
       </div>
 
+      {/* Body */}
       <div className="p-4">
-        <div className="text-base font-black text-stone-900">{product.name}</div>
-        <div className="mt-1 line-clamp-2 text-sm font-semibold text-stone-600">
-          {product.desc}
-        </div>
+        <div className="text-base font-extrabold text-stone-900">{product.name}</div>
+        <p className="mt-1 line-clamp-2 text-sm text-stone-600">{product.desc}</p>
 
-        <div className="mt-4 flex items-end justify-between gap-3">
-          <div>
-            <div className="text-xs font-bold text-stone-500">Mulai dari</div>
-            <div className="text-lg font-black text-orange-700">
-              Rp {price.toLocaleString("id-ID")}
-            </div>
-          </div>
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div className="text-sm font-black text-orange-700">{formatRupiah(product.price)}</div>
 
-          <span className="rounded-full border border-stone-200 bg-amber-50 px-3 py-1 text-xs font-extrabold text-amber-800">
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
             {product.category}
           </span>
         </div>
