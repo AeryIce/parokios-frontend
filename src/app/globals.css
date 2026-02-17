@@ -1,26 +1,62 @@
 @import "tailwindcss";
 
+/* Tailwind v4: bikin `dark:` jadi OPT-IN via class `.dark`, bukan auto dari OS */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Cappuccino / Latte (default LIGHT) */
+  --background: #fff7ed; /* orange-50 */
+  --foreground: #1c1917; /* stone-900 */
+
+  --card: #ffffff;
+  --card-2: #fffbeb; /* amber-50 */
+  --muted: #78716c; /* stone-500 */
+  --border: rgba(120, 113, 108, 0.20);
+
+  --brand: #d97706; /* amber-600 */
+  --brand-2: #ea580c; /* orange-600 */
+  --ring: rgba(234, 88, 12, 0.35);
+
+  --radius: 16px;
+}
+
+/* Optional: kalau suatu hari kamu MAU dark mode, tinggal pasang class "dark" di <html> */
+.dark {
+  --background: #1a1410; /* espresso */
+  --foreground: #fff7ed; /* latte text */
+
+  --card: #241b16;
+  --card-2: #2a201a;
+  --muted: #d6d3d1;
+  --border: rgba(255, 247, 237, 0.12);
+
+  --brand: #f59e0b; /* amber-500 */
+  --brand-2: #fb923c; /* orange-400 */
+  --ring: rgba(251, 146, 60, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+    Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Biar “hangat” dikit */
+::selection {
+  background: rgba(245, 158, 11, 0.35);
 }
