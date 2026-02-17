@@ -4,29 +4,10 @@ import { Carousel } from "@/app/_components/Carousel";
 import { ProductCard } from "@/app/_components/ProductCard";
 import { Section } from "@/app/_components/Section";
 import { getParishBySlug, getSeller, listProductsBySeller } from "@/app/_data/demo";
+import { buildWhatsAppLink } from "@/app/_lib/wa";
 
 type Params = { parishSlug: string; sellerSlug: string };
 type Props = { params: Params | Promise<Params> };
-
-function getWhatsappDigits(seller: unknown): string | null {
-  const rec = seller as Record<string, unknown>;
-  const keys = ["whatsapp", "wa", "whatsappNumber", "waNumber", "phoneWa", "phone"] as const;
-
-  for (const k of keys) {
-    const v = rec[k];
-    if (typeof v === "string") {
-      const trimmed = v.trim();
-      if (trimmed.length > 0) return trimmed;
-    }
-  }
-  return null;
-}
-
-function waLink(waDigits: string, message: string): string {
-  const clean = waDigits.replace(/\D/g, "");
-  const text = encodeURIComponent(message);
-  return `https://wa.me/${clean}?text=${text}`;
-}
 
 export default async function SellerPage({ params }: Props) {
   const p = await Promise.resolve(params);
@@ -37,9 +18,12 @@ export default async function SellerPage({ params }: Props) {
   const seller = getSeller(parish.slug, p.sellerSlug);
   if (!seller) notFound();
 
-  const waDigits = getWhatsappDigits(seller);
-
   const products = listProductsBySeller(parish.slug, seller.slug);
+
+  const waHref = buildWhatsAppLink(
+    seller.waNumber,
+    `Halo ${seller.name}! Saya lihat produk di Parokios (${parish.name}). Bisa info stok & cara order?`
+  );
 
   return (
     <main className="min-h-dvh bg-gradient-to-b from-orange-50 via-amber-50 to-white">
@@ -61,13 +45,10 @@ export default async function SellerPage({ params }: Props) {
               </p>
             </div>
 
-            {waDigits ? (
+            {waHref ? (
               <a
                 className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-700"
-                href={waLink(
-                  waDigits,
-                  `Halo ${seller.name}! Saya lihat produk di Parokios (${parish.name}). Bisa info stok & cara order?`
-                )}
+                href={waHref}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -81,7 +62,7 @@ export default async function SellerPage({ params }: Props) {
           </div>
         </div>
 
-        <Section title="Etalase" subtitle="Klik menu buat lihat detail + chat WA cepat.">
+        <Section title="Etalase" subtitle="Klik produk buat lihat detail + checkout WA cepat.">
           {products.length > 0 ? (
             <Carousel>
               {products.map((x) => (

@@ -2,14 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { Parish, Product, Seller } from "../_data/demo";
 import { formatRupiah } from "../_lib/money";
 import {
   addRecent,
-  isFavorite,
+  getFavorites,
   makeProductKey,
   toggleFavorite,
+  FAVORITES_STORAGE_KEY,
+  PERSONAL_EVENT_NAME,
   type ProductKey,
 } from "../_lib/personalShelf";
 
@@ -22,17 +24,37 @@ type Props = {
   };
 };
 
+const EMPTY_KEYS: ProductKey[] = [];
+
+function makeSubscribe(storageKey: string) {
+  return (onStoreChange: () => void) => {
+    if (typeof window === "undefined") return () => undefined;
+
+    const onCustom = () => onStoreChange();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === storageKey || e.key === null) onStoreChange();
+    };
+
+    window.addEventListener(PERSONAL_EVENT_NAME, onCustom);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener(PERSONAL_EVENT_NAME, onCustom);
+      window.removeEventListener("storage", onStorage);
+    };
+  };
+}
+
+const subscribeFavorites = makeSubscribe(FAVORITES_STORAGE_KEY);
+
 export function ProductCard({ parish, seller, product }: Props) {
   const productKey: ProductKey = useMemo(
     () => makeProductKey(parish.slug, seller.slug, product.slug),
     [parish.slug, seller.slug, product.slug]
   );
 
-  const [fav, setFav] = useState<boolean>(false);
-
-  useEffect(() => {
-    setFav(isFavorite(productKey));
-  }, [productKey]);
+  const favorites = useSyncExternalStore(subscribeFavorites, getFavorites, () => EMPTY_KEYS);
+  const fav = favorites.includes(productKey);
 
   const hasImage = typeof product.imageUrl === "string" && product.imageUrl.trim().length > 0;
 
@@ -49,8 +71,7 @@ export function ProductCard({ parish, seller, product }: Props) {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          const next = toggleFavorite(productKey);
-          setFav(next);
+          toggleFavorite(productKey);
         }}
         className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl border border-stone-200 bg-white/90 text-lg shadow-sm transition hover:bg-white"
         title={fav ? "Unfavorite" : "Favorite"}
@@ -68,7 +89,7 @@ export function ProductCard({ parish, seller, product }: Props) {
               fill
               className="object-cover"
               sizes="260px"
-              priority={false}
+              unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/10 to-white/90" />
           </>
@@ -76,19 +97,15 @@ export function ProductCard({ parish, seller, product }: Props) {
           <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-orange-100 to-amber-50" />
         )}
 
-        {/* Parish badge */}
         <div className="absolute left-3 top-3 rounded-full bg-white/85 px-3 py-1 text-[11px] font-extrabold text-stone-800 shadow-sm">
           {parish.name}
         </div>
 
-        {/* Seller strip */}
         <div className="absolute bottom-3 left-3 flex items-center gap-2">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/90 text-xl shadow-sm">
             {product.emoji ?? "🍽️"}
           </div>
-          <div className="text-sm font-extrabold text-stone-900 drop-shadow-sm">
-            {seller.name}
-          </div>
+          <div className="text-sm font-extrabold text-stone-900 drop-shadow-sm">{seller.name}</div>
         </div>
       </div>
 

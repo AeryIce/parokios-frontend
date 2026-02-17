@@ -98,7 +98,8 @@ export default function StickyBottomBar({
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-stone-200 bg-white/90 backdrop-blur md:hidden">
+    // NOTE: sengaja tampil di desktop juga (hapus md:hidden)
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-stone-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 pb-[env(safe-area-inset-bottom)]">
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-extrabold text-stone-900">{title}</div>
